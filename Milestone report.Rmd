@@ -1,0 +1,190 @@
+---
+title: "Exploratory Data Analysis"
+author: "Juana Arroyo"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Synopsis
+
+In this assignment, I will show the exploratory data analysis performed in the provided data. We have three text datasets, one with Twitter texts, one with blogs texts and one with news texts. Here I will show the exploratory analysis I did in order to understand the data, I will show the distribution, frequent words, bi-gram and three-gram, this is the first step to developing a speech prediction model.
+
+## Downloading Data
+
+The data was downloaded from [this url](https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip) provided by the Coursera page of the course. There are three files, all in English, German and Finnish. Here I will be using the English files, these are named en_US.blogs, en_US.news, and en_US.twitter.
+
+Below we can see the first 5 lines of each file
+
+```{r , echo=FALSE, message=FALSE, warning=FALSE}
+library(stringr)
+library(ggplot2)
+library(caret)
+library(wordcloud)
+library(RColorBrewer)
+library(quanteda)
+library(knitr)
+library(kableExtra)
+
+setwd("C:/Users/juani/OneDrive/Documentos/R/capstone/Coursera-SwiftKey/final/en_US")
+fileName="en_US.blogs.txt"
+con=file(fileName,open="r")
+blogs=readLines(con)
+
+fileName="en_US.twitter.txt"
+con2=file(fileName,open="r")
+twitter=readLines(con2)
+
+fileName="en_US.news.txt"
+con3=file(fileName,open="r")
+news=readLines(con3)
+
+close(con,con2,con3)
+rm(con,con2,con3, fileName)
+
+## head of each file
+head(blogs)
+head(news)
+head(twitter)
+```
+
+## Exploratory Data Analysis
+
+In the next step I check each file, the number of lines, total words, minimum, maximum, and mean number of words per line. I also computed the percentage of words each file would represent if  I merge the three of them in a single file. We can see a table with this summary below, the last column represents the percentage I should use from each file, so when I merge them each of them would be 0.07% of the whole data.
+
+```{r , echo=FALSE, message=FALSE, warning=FALSE}
+file<-c("twitter","news","blogs")
+lines<-c(length(twitter),length(news),length(blogs))
+total_words<-c(sum((str_count(twitter, "\\w+"))),
+               sum((str_count(news, "\\w+"))),
+               sum((str_count(blogs, "\\w+"))))
+mean_word_row<-c(mean((str_count(twitter, "\\w+"))),
+                 mean((str_count(news, "\\w+"))),
+                 mean((str_count(blogs, "\\w+"))))
+min_word_row<-c(min((str_count(twitter, "\\w+"))),
+                 min((str_count(news, "\\w+"))),
+                 min((str_count(blogs, "\\w+"))))
+max_word_row<-c(max((str_count(twitter, "\\w+"))),
+                max((str_count(news, "\\w+"))),
+                max((str_count(blogs, "\\w+"))))
+summary_table<-data.frame(File=file,FileLines=lines,
+           FileWords=total_words,
+           WordsPercentage=(total_words/sum(total_words)*100),
+           MeanWordByLine = mean_word_row,
+           MinWord=min_word_row,
+           MaxWord=max_word_row,
+           equiv_percentaje=sum(total_words)*0.0007/total_words)
+
+kable(summary_table)%>%kable_styling("striped", full_width = T)
+```
+
+Now I will select the percentage in the last column of the table from each file and merge them together. We can see below a table with a summary of these samples. 
+
+```{r , echo=FALSE, message=FALSE, warning=FALSE}
+set.seed(100)
+sample_t <- sample(x=twitter, size = floor(0.001626858*length(twitter)), replace = F)
+sample_n <- sample(x=news, size = floor(0.018397436*length(news)), replace = F)
+sample_b <- sample(x=blogs, size = floor(0.001316596*length(blogs)), replace = F)
+
+
+sample_lines<-c(length(sample_t),length(sample_n),length(sample_b))
+sample_words<-c(sum((str_count(sample_t, "\\w+"))),
+                sum((str_count(sample_n, "\\w+"))),
+                sum((str_count(sample_b, "\\w+"))))
+sample_data<-data.frame(File=file,Lines=sample_lines,Words=sample_words)
+kable(sample_data)%>%kable_styling("striped", full_width = T)
+
+##clean unnecessary data
+rm(sample_lines,sample_words,sample_data,summary_table,
+   lines,max_word_row,min_word_row,mean_word_row, file, total_words)
+rm(twitter,blogs,news)
+
+##joining data
+joined_data<-c(sample_t,sample_n, sample_b)
+rm(sample_t,sample_n,sample_b)
+```
+
+Besides that, I divide the resulting sample into two datasets, a training set with 75% of the data, and a testing set with 25% of the data.
+
+```{r , echo=FALSE, message=FALSE, warning=FALSE}
+## Separating training and testing
+set.seed(101)
+sample <- sample.int(n = length(joined_data), size = floor(.75*length(joined_data)), replace = F)
+train <- joined_data[sample]
+test  <- joined_data[-sample]
+```
+
+In the next step, I create the tokens and a data frame with two columns, the first one has every token created and the second one has the number of times each tokens appear in the training set.
+Here I will show the first 10 tokens organized in decreasing order, these are 10 more frequent words in the test set.
+
+```{r , echo=FALSE, message=FALSE, warning=FALSE}
+##trying seeing data without sample
+tokens<-tokens(train, what="word", remove_numbers=TRUE,
+                 remove_punct=TRUE, remove_hyphens=TRUE,
+                 remove_symbols=TRUE)
+dfm <- dfm(tokens, tolower = TRUE)
+matrix<-as.matrix(dfm)
+w_count <- sort(colSums(matrix),decreasing=TRUE)
+freq_uni <- data.frame(word=names(w_count),freq=w_count, row.names = NULL)
+kable(head(freq_uni, 10))%>%kable_styling("striped", full_width = F)
+rm(dfm)
+```
+
+In the next graph, we can see the 20 most frequent words.
+
+```{r , echo=FALSE, message=FALSE, warning=FALSE}
+##freqwords bar plot
+BLUE <- "#076fa2"
+RED <- "#E3120B"
+BLACK <- "#202020"
+GREY <- "grey50"
+
+plt<- ggplot(freq_uni[1:20,]) +
+  geom_col(aes(freq, reorder(word,freq)),
+           fill = BLUE, width = 0.6) + xlab("Count") + ylab("Word")
+plt
+```
+
+Next, I will generate tokens for bi-grams, we can see the first ten terms of the frequency table for the bi-grams and a barplot with the 20 most frequent bi-gram.
+
+```{r , echo=FALSE, message=FALSE, warning=FALSE}
+###frequent bi-gram
+rm(matrix)
+tokens_2gram <- tokens %>% tokens_tolower() %>%
+  tokens_ngrams(n=2)
+dfm2 <- dfm(tokens_2gram)
+matrix2<-as.matrix(dfm2)
+bi_count <- sort(colSums(matrix2),decreasing=TRUE)
+freq_bi <- data.frame(word=names(bi_count),freq=bi_count, row.names = NULL)
+kable(head(freq_bi,10))%>%kable_styling("striped", full_width = F)
+
+plt2<- ggplot(freq_bi[1:20,]) +
+  geom_col(aes(freq, reorder(word,freq)),
+           fill = BLUE, width = 0.6) + xlab("Count") + ylab("Word")
+plt2
+```
+
+I repeat the previous step for three-grams
+
+```{r , echo=FALSE, message=FALSE, warning=FALSE}
+##create 3gram matrix
+tokens_3gram <- tokens %>% tokens_tolower() %>%
+  tokens_ngrams(n=3)
+dfm3 <- dfm(tokens_3gram)
+matrix3<-as.matrix(dfm3)
+tri_count <- sort(colSums(matrix3),decreasing=TRUE)
+freq_tri <- data.frame(word=names(tri_count),freq=tri_count, row.names = NULL)
+kable(head(freq_tri,10))%>%kable_styling("striped", full_width = F)
+
+plt3<- ggplot(freq_tri[1:20,]) +
+  geom_col(aes(freq, reorder(word,freq)),
+           fill = BLUE, width = 0.6) + xlab("Count") + ylab("Word")
+plt3
+```
+
+## Prediction model plans
+
+In the previous graphs, we could see the most frequent words, 2-gram and 3-grams. However, we need to create a model that helps us predict the word following another word or a sentence, in order to accomplish this I am planning on using a back-off model with smoothing and use perplexity to measure the model's accuracy. I am also considering pruning the data since I may have some memory limitations.

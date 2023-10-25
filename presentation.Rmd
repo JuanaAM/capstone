@@ -1,0 +1,126 @@
+---
+title: "<font color=skyblue> Word prediction model and shiny application"
+author: "Juana Arroyo"
+date: "`r Sys.Date()`"
+output: 
+  ioslides_presentation:
+    widescreen: true
+---
+```{=html}
+<style>
+body, p { 
+  font-family: Palatino;
+}
+h1,h2,h3,h4,h5,h6{
+  font-family: Palatino;
+  color: skyblue
+}
+ol{
+  font-family: Palatino;
+}
+ul{
+  font-family: Palatino;
+}
+</style>
+```
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Source data{.flexbox .vcenter}
+
+For this project, the course provided three datasets (news, twitter, and blogs) in text format. I joined the three datasets and extracted a sample with 20% of the whole data, this sample was then divided into train and test sets. The train set was used to find bi-grams, three-grams, four-grams and five-grams. Here we can see the most frequent bi-grams and three-grams.
+
+```{r wordcloud, echo = FALSE, message=FALSE, warning=FALSE, fig.show="hold", out.width="50%"}
+library(wordcloud)
+library(RColorBrewer)
+load("C:/Users/juani/OneDrive/Documentos/R/capstone/Coursera-SwiftKey/final/en_US/two_gram_s.Rda")
+load("C:/Users/juani/OneDrive/Documentos/R/capstone/Coursera-SwiftKey/final/en_US/three_gram_s.Rda")
+
+set.seed(102)
+wordcloud(words = paste(two_gram_s$part1,two_gram_s$part2,sep=" "), freq = two_gram_s$count, scale=c(4,.5), min.freq = 1, max.words=30, random.order=FALSE, rot.per=0.35,colors=brewer.pal(8, "Dark2"))
+mtext("two-grams",
+      side=3, 
+      line=3, 
+      at=0.3, 
+      col = "skyblue",
+      adj=0, 
+      cex=1.5)
+set.seed(103)
+wordcloud(words = paste(three_gram_s$part1,three_gram_s$part2,sep=" "), freq = three_gram_s$count, scale=c(4,.5), min.freq = 1, max.words=30, random.order=FALSE, rot.per=0.35,colors=brewer.pal(8, "Dark2"))
+mtext("three-grams",
+      side=3, 
+      line=3, 
+      at=0.3, 
+      adj=0,
+      col = "skyblue",
+      cex=1.5)
+```
+
+## Cleaning and trimming data {.flexbox .vcenter}
+
+In order to make the model faster and reduce memory consumption some decisions were taken during the development of the model. I will list the final desitions.
+
+<ol style="font-size: 20px">
+<li>The words that appear once and are present in the English dictionary were considered unknown words, these were replaced by "UNK" and their probability was computed the same way that the rest of the words.</li>
+<li>From the remaining words I removed all the words with a frequency lower than 220.</li>
+<li>Some n-grams were also deleted in the next way:</li>
+<ul style="font-size: 18px">
+<li>bigram with a frequency less or equal to 60.</li>
+<li>three-gram with a frequency less or equal to 18</li>
+</ul>
+</ol>
+
+Four-gram and five gram were also reduced in the process, however, they were not considered at all in the final model.
+
+## Model creation{.flexbox .vcenter}
+
+I used the Katz Backk-off approach with good turing as smoothing technique. First, I created a function to perform Good Turing, it redistributes the counts of the n-grams. After calling the function we have a table with n-gram count, the new estimated probability, and a variable d or amount of discounting. I did this for bi-gram, three-grams, four-grams and five-grams.
+
+In the next step a function was created to predict the next word given a phrase, this function takes the phrase and the n-grams previously created and assigns a probability to every word present in the corpus, this is the probability of being the next word given its history, using the Katz back-off approach. In the shiny app application, the model will check for the history of the phrase in the three-gram, when it is not present, it will then check the bi-gram.
+
+## Accuracy and perplexity
+Using the same Katz back-off approach I found the probability of the bi-grams, three-grams, four-grams and five-grams generated with a small portion of the test set. Then I estimated the perplexity, I found the values given in the table below.
+
+```{r table, message=FALSE, warning=FALSE}
+library(kableExtra)
+load("C:/Users/juani/OneDrive/Documentos/R/capstone/Coursera-SwiftKey/final/en_US/twoval.Rda")
+load("C:/Users/juani/OneDrive/Documentos/R/capstone/Coursera-SwiftKey/final/en_US/threeval.Rda")
+load("C:/Users/juani/OneDrive/Documentos/R/capstone/Coursera-SwiftKey/final/en_US/fourval.Rda")
+load("C:/Users/juani/OneDrive/Documentos/R/capstone/Coursera-SwiftKey/final/en_US/fiveval.Rda")
+
+###finding perplexity
+ppx_twogram<-exp(-sum(log(val_two$pkz)) / length(val_two$pkz))
+ppx_threegram<-exp(-sum(log(val_three$pkz)) / length(val_three$pkz))
+ppx_fourgram<-exp(-sum(log(val_four$pkz)) / length(val_four$pkz))
+ppx_fivegram<-exp(-sum(log(val_five$pkz)) / length(val_five$pkz))
+
+table<-data.frame(ngrams=c("two-gram","three-gram","four-gram","five-gram"),perplexity=c(ppx_twogram,ppx_threegram,ppx_fourgram,ppx_fivegram))
+kable(table, table.attr = "style = \"font-size: 11px;\"")%>%
+    kable_styling(bootstrap_options = "striped", full_width = F)
+```
+<br/>
+To check the accuracy, I separated the final word in each test n-gram and used the model to find the three words with the highest probability given the first part of the phrase, the original words and predicted words were used to compute the accuracy of the model, these values ranged from 0,21 to 0,27, considering the first three predicted words. The final model has an accuracy of 0.26.
+
+## Final product
+
+I developed a simple Shinny App where you can predict a word given a phrase, you can access the Shiny app [here](link), in the left panel you should type a phrase, checking the spelling is correct. After a few seconds, the right panel will show the three words predicted by the model.
+
+```{r image, message=FALSE, warning=FALSE}
+knitr::include_graphics("C:/Users/juani/OneDrive/Documentos/R/capstone/shiny_app.png")
+```
+
+
+## References
+
+[Speech and Language Processing,DanielJurafsky&JamesH.Martin](https://web.stanford.edu/~jurafsky/slp3/3.pdf)
+
+[Good–Turing frequency estimation, Wikipedia](https://en.wikipedia.org/wiki/Good%E2%80%93Turing_frequency_estimation)
+
+[Katz's back-off model, Wikipedia](https://en.wikipedia.org/wiki/Katz%27s_back-off_model)
+
+More information is available in the [repository](https://github.com/JuanaAM/capstone) of the capstone project.
+
+
+
+
