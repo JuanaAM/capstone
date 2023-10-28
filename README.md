@@ -4,5 +4,5 @@ This is a model developed for the capstone project of the Data Science Specializ
 
 In this repository you will find the ioslides presentation, the shinny app, code source, the function and data used by the Shiny App, also the milestone from the previous activity in the course.
 
-[Shiny App]()
-[Ioslides]()
+[Shiny App](https://juanaam1990.shinyapps.io/word_prediction/)
+[Ioslides](https://rpubs.com/juana_am/word-prediction-model)
